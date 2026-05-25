@@ -1,0 +1,94 @@
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  background: #fff;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--neo-border);
+  box-shadow: 2px 2px 0px 0px #000;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sender {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #000;
+}
+
+.ts {
+  font-size: 12px;
+  color: #000;
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.msg {
+  color: #000;
+  line-height: 1.6;
+  background: #fff;
+  padding: 12px 16px;
+  border: var(--neo-border);
+  box-shadow: 4px 4px 0px 0px #000;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.aiStream .msg {
+  background: var(--accent-primary);
+  font-size: 13px;
+  border: var(--neo-border);
+  box-shadow: 4px 4px 0px 0px #000;
+}
+
+.aiStream .msg::after {
+  content: '▋';
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Colors by role */
+.role_pm { color: var(--accent-secondary); }
+.role_architect { color: var(--accent-success); }
+.role_designer { color: var(--accent-tertiary); }
+.role_dev1 { color: #38bdf8; }
+.role_dev2 { color: #818cf8; }
+.role_qa { color: var(--accent-warning); }
+.role_devops { color: var(--accent-danger); }
+.role_ai { color: var(--accent-primary); }
+.role_system { color: #666; }

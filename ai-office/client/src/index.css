@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+:root {
+  /* Neo-Brutalism Colors */
+  --bg-primary: #f4f0ea; /* Off-white / Cream */
+  --bg-secondary: #ffffff;
+  
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --text-muted: #666666;
+  
+  --accent-primary: #ffde00; /* Bright Yellow */
+  --accent-secondary: #00e5ff; /* Cyan */
+  --accent-tertiary: #ff3366; /* Hot Pink */
+  
+  --accent-success: #00ea60; /* Bright Green */
+  --accent-warning: #ff5500; /* Orange */
+  --accent-danger: #ff0033; /* Red */
+  
+  /* Borders and Shadows */
+  --neo-border-width: 3px;
+  --neo-border: var(--neo-border-width) solid #000;
+  --neo-shadow-color: #000;
+  --neo-shadow: 6px 6px 0px 0px var(--neo-shadow-color);
+  --neo-shadow-hover: 2px 2px 0px 0px var(--neo-shadow-color);
+  
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); border-left: var(--neo-border); }
+::-webkit-scrollbar-thumb {
+  background: var(--accent-primary);
+  border: 2px solid #000;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent-secondary); }
+
+/* Base Utilities */
+.heading-display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+/* Base button styles */
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: var(--neo-border);
+  box-shadow: var(--neo-shadow);
+  transition: all 0.1s ease;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 4px 4px 0px 0px var(--neo-shadow-color);
+}
+
+button:active { 
+  transform: translate(6px, 6px);
+  box-shadow: 0px 0px 0px 0px var(--neo-shadow-color);
+}
+
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+}
