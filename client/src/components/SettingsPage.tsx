@@ -23,6 +23,8 @@ interface OfficeConfig {
   ai_base_url: string | null;
   ai_api_key: string | null;
   mcp_servers: string | null;
+  git_token: string | null;
+  git_username: string | null;
 }
 
 interface Template {
@@ -53,6 +55,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const [aiBaseUrl, setAiBaseUrl] = useState('');
   const [aiApiKey, setAiApiKey] = useState('');
   const [mcpServers, setMcpServers] = useState('');
+  const [gitToken, setGitToken] = useState('');
+  const [gitUsername, setGitUsername] = useState('');
   const [onboardPrompt, setOnboardPrompt] = useState('');
 
   // Creator form state
@@ -184,6 +188,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       setAiBaseUrl(data.ai_base_url || '');
       setAiApiKey(data.ai_api_key || '');
       setMcpServers(data.mcp_servers || '');
+      setGitToken(data.git_token || '');
+      setGitUsername(data.git_username || '');
       setOnboardPrompt(data.onboard_prompt || '');
     } catch (e) {
       console.error('Failed to fetch settings', e);
@@ -258,6 +264,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           ai_base_url: aiBaseUrl || null,
           ai_api_key: aiApiKey || null,
           mcp_servers: mcpServers || null,
+          git_token: gitToken || null,
+          git_username: gitUsername || null,
           onboard_prompt: onboardPrompt || null
         })
       });
@@ -279,6 +287,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       setAiBaseUrl('');
       setAiApiKey('');
       setMcpServers('');
+      setGitToken('');
+      setGitUsername('');
       setOnboardPrompt('');
       setEditingPrompts({});
       showToast('✓ Reset Complete!');
@@ -703,6 +713,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                 rows={8}
                 style={{ fontFamily: 'monospace' }}
               />
+            </div>
+
+            <div className={`${styles.configSection} ${styles.onboardSection}`}>
+              <div className={styles.configTitle}>
+                <Cloud size="24" color="#000" variant="Bold" />
+                Git Configuration
+              </div>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 16, fontWeight: 500 }}>
+                Set your GitHub username and Personal Access Token to allow pushing projects directly to your repository.
+              </p>
+              <div className={styles.configGrid}>
+                <div className={styles.configField}>
+                  <label className={styles.configLabel}>GitHub Username</label>
+                  <input
+                    type="text"
+                    className={styles.configInput}
+                    value={gitUsername}
+                    onChange={(e) => setGitUsername(e.target.value)}
+                    placeholder="e.g. johndoe"
+                  />
+                </div>
+                <div className={styles.configField}>
+                  <label className={styles.configLabel}>Personal Access Token (PAT)</label>
+                  <input
+                    type="password"
+                    className={styles.configInput}
+                    value={gitToken}
+                    onChange={(e) => setGitToken(e.target.value)}
+                    placeholder="ghp_..."
+                  />
+                  <span className={styles.configHint}>Requires 'repo' scope</span>
+                </div>
+              </div>
             </div>
 
             <button className={styles.configSaveBtn} onClick={saveConnection}>

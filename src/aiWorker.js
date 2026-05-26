@@ -85,13 +85,13 @@ const STAGE_CONFIG = {
         chatRole: 'dev1',
         files: [],
         buildUserPrompt: (task, prior) =>
-            `Project: "${task}"\n\nPRD:\n${prior['blueprint.md'] || prior['prd.md'] || ''}\n\nUX Spec:\n${prior['ux-spec.md'] || prior['mockup.md'] || ''}\n\nDesign Tokens:\n${prior['design-tokens.json'] || ''}\n\nQA Feedback:\n${prior['test-report.md'] || 'None'}\n\nRun your full Frontend Engineer protocol. You MUST build a proper folder structure. Use ---COMMAND:npx create-...--- to initialize the project or install libraries. Use ---FILE:path/to/file.ext--- to write code.`
+            `Project: "${task}"\n\nPRD:\n${prior['blueprint.md'] || prior['prd.md'] || ''}\n\nUX Spec:\n${prior['ux-spec.md'] || prior['mockup.md'] || ''}\n\nDesign Tokens:\n${prior['design-tokens.json'] || ''}\n\nQA Feedback:\n${prior['test-report.md'] || 'None'}\n\n=== CRITICAL FILE PLACEMENT RULES ===\n1. ALL your files MUST be prefixed with \"frontend/\". Example: ---FILE:frontend/src/components/Button.tsx---\n2. NEVER write files to root, src/, client/, or server/ — ONLY frontend/\n3. UI constants and display labels go in frontend/src/lib/constants/ — NOT in types/\n4. Pin ALL package versions strictly (NEVER use \"latest\" or equivalent)\n5. Do NOT create duplicate directories (e.g. both frontend/services/ and frontend/src/services/)\n\nRun your full Frontend Engineer protocol. You MUST build a proper folder structure under frontend/ based on the tech stack you selected. Use ---COMMAND:appropriate init command--- to initialize the project or install libraries. Use ---FILE:frontend/path/to/file.ext--- to write code.`
     },
     backend: {
         chatRole: 'dev2',
         files: [],
         buildUserPrompt: (task, prior) =>
-            `Project: "${task}"\n\nPRD:\n${prior['blueprint.md'] || prior['prd.md'] || ''}\n\nQA Feedback:\n${prior['test-report.md'] || 'None'}\n\nRun your full Backend Engineer protocol. You MUST build a proper folder structure. Use ---COMMAND:npm install ...--- to setup the environment. Use ---FILE:path/to/file.ext--- to write code.`
+            `Project: "${task}"\n\nPRD:\n${prior['blueprint.md'] || prior['prd.md'] || ''}\n\nQA Feedback:\n${prior['test-report.md'] || 'None'}\n\n=== CRITICAL FILE PLACEMENT RULES ===\n1. ALL your files MUST be prefixed with \"backend/\". Example: ---FILE:backend/src/main.go---\n2. NEVER write files to root, src/, frontend/, or client/ — ONLY backend/\n3. Database files go under backend/db/ or backend/prisma/\n4. Pin ALL package dependencies strictly (NEVER use \"latest\" or equivalent)\n5. Do NOT create duplicate directories\n\nRun your full Backend Engineer protocol. You MUST build a proper folder structure under backend/ based on the tech stack you selected. Use ---COMMAND:appropriate init command--- to setup the environment. Use ---FILE:backend/path/to/file.ext--- to write code.`
     },
     qa: {
         chatRole: 'qa',
@@ -173,6 +173,133 @@ function sanitizeParsedFileContent(fname, content = '') {
         .trimEnd();
 }
 
+// Normalize file path: strip project name prefix, leading ./ or /, normalize separators
+function normalizeFilePath(fname) {
+    let normalized = fname.trim();
+    // Remove leading ./ or /
+    normalized = normalized.replace(/^\.?\//, '');
+    // Remove common project-name prefixes the AI might add (e.g. "kopiconfig-orderos/src/...")
+    // Pattern: first segment that looks like a project name (contains hyphens, not frontend/backend/shared/src)
+    const firstSegment = normalized.split('/')[0];
+    const reservedDirs = ['frontend', 'backend', 'shared', 'src', 'app', 'lib', 'public', 'prisma', 'components', 'config', 'styles', 'types', 'schemas', 'services', 'repositories', 'modules', 'hooks', 'stores', 'store', 'utils', 'tests', 'scripts'];
+    if (firstSegment.includes('-') && !reservedDirs.includes(firstSegment) && normalized.includes('/')) {
+        // Likely a project name prefix like "kopiconfig-orderos/src/...", strip it
+        normalized = normalized.substring(firstSegment.length + 1);
+    }
+    // Normalize path separators
+    normalized = normalized.replace(/\\/g, '/');
+    return normalized;
+}
+
+// Enforce prefix for frontend/backend stage output
+function enforcePrefix(files, prefix) {
+    const result = {};
+    for (const [fname, fcontent] of Object.entries(files)) {
+        let normalized = normalizeFilePath(fname);
+        // If file already starts with the correct prefix, keep it
+        if (normalized.startsWith(prefix + '/')) {
+            result[normalized] = fcontent;
+        }
+        // If file starts with the OTHER prefix, leave it (cross-stage reference)
+        else if (normalized.startsWith('frontend/') || normalized.startsWith('backend/') || normalized.startsWith('shared/')) {
+            result[normalized] = fcontent;
+        }
+        // Otherwise, add the prefix
+        else {
+            result[prefix + '/' + normalized] = fcontent;
+        }
+    }
+    return result;
+}
+
+// Validate workspace output after generation
+function validateWorkspaceOutput(projectId) {
+    const wsDir = path.join(WORKSPACE_ROOT, projectId);
+    if (!fs.existsSync(wsDir)) return [];
+    
+    const warnings = [];
+    
+    // Collect all file paths
+    const allFiles = [];
+    function collectFiles(dir, base = '') {
+        try {
+            const items = fs.readdirSync(dir);
+            for (const item of items) {
+                if (['node_modules', '.git', '.next', 'dist', 'build'].includes(item)) continue;
+                const full = path.join(dir, item);
+                const rel = base ? base + '/' + item : item;
+                const stat = fs.statSync(full);
+                if (stat.isDirectory()) collectFiles(full, rel);
+                else allFiles.push(rel);
+            }
+        } catch (e) { /* ignore */ }
+    }
+    collectFiles(wsDir);
+    
+    // Check 1: FE files in backend/
+    const feExtsInBackend = allFiles.filter(f => 
+        f.startsWith('backend/') && /\.(tsx|jsx|css|scss|module\.css)$/i.test(f) && !f.includes('test')
+    );
+    if (feExtsInBackend.length > 0) {
+        warnings.push(`⚠️ File frontend terdeteksi di backend/: ${feExtsInBackend.slice(0, 3).join(', ')}`);
+    }
+    
+    // Check 2: BE files in frontend/
+    const beFilesInFrontend = allFiles.filter(f =>
+        f.startsWith('frontend/') && (/prisma\//.test(f) || /\.sql$/i.test(f) || /seed\.(ts|js)$/i.test(f))
+    );
+    if (beFilesInFrontend.length > 0) {
+        warnings.push(`⚠️ File backend terdeteksi di frontend/: ${beFilesInFrontend.slice(0, 3).join(', ')}`);
+    }
+    
+    // Check 3: Files outside frontend/ and backend/ (except planning docs)
+    const planningFiles = ['blueprint.md', 'prd.md', 'design-output.md', 'frontend-output.md', 'backend-output.md', 'qa-output.md', 'deploy-output.md', 'ARCHITECTURE.md', 'README.md', 'test-report.md', 'qa-strategy.md', 'mockup.md', 'ux-spec.md', 'design-tokens.json', 'deployment-plan.md', 'Dockerfile', 'docker-compose.yml', '.env', '.env.example'];
+    const strayFiles = allFiles.filter(f => 
+        !f.startsWith('frontend/') && !f.startsWith('backend/') && !f.startsWith('shared/') &&
+        !planningFiles.includes(f) && !f.startsWith('.') && f.includes('.')
+    );
+    if (strayFiles.length > 0) {
+        warnings.push(`⚠️ File ditemukan di luar frontend/ dan backend/: ${strayFiles.slice(0, 5).join(', ')}`);
+    }
+    
+    // Check 4: Duplicate directories (e.g. frontend/services/ AND frontend/src/services/)
+    const dirs = new Set();
+    allFiles.forEach(f => {
+        const parts = f.split('/');
+        for (let i = 1; i < parts.length; i++) {
+            dirs.add(parts.slice(0, i).join('/'));
+        }
+    });
+    const dirNames = [...dirs];
+    for (const d of dirNames) {
+        const base = d.split('/').pop();
+        const parent = d.split('/').slice(0, -1).join('/');
+        // Check if same dirname exists at different depths under same root
+        const siblings = dirNames.filter(other => 
+            other !== d && other.endsWith('/' + base) && 
+            other.startsWith(d.split('/')[0] + '/') &&
+            Math.abs(other.split('/').length - d.split('/').length) === 1
+        );
+        if (siblings.length > 0 && ['services', 'repositories', 'schemas', 'lib', 'utils', 'config', 'types', 'stores', 'store', 'prisma'].includes(base)) {
+            warnings.push(`⚠️ Duplikasi direktori terdeteksi: ${d} dan ${siblings[0]}`);
+            break; // Only report once
+        }
+    }
+    
+    // Check 5: package.json with "latest" versions
+    const pkgFiles = allFiles.filter(f => f.endsWith('package.json'));
+    for (const pf of pkgFiles) {
+        try {
+            const content = fs.readFileSync(path.join(wsDir, pf), 'utf8');
+            if (content.includes('"latest"')) {
+                warnings.push(`⚠️ ${pf} menggunakan versi "latest" — seharusnya di-pin (contoh: "^19.2.6")`);
+            }
+        } catch (e) { /* ignore */ }
+    }
+    
+    return warnings;
+}
+
 function parseAIOutput(content, expectedFilenames = []) {
     const result = { files: {}, commands: [] };
     
@@ -188,7 +315,7 @@ function parseAIOutput(content, expectedFilenames = []) {
     const parts = content.split(/---FILE:([^-\n]+)---/);
     if (parts.length > 1) {
         for (let i = 1; i < parts.length; i += 2) {
-            const fname = parts[i].trim();
+            const fname = normalizeFilePath(parts[i]);
             const fcontent = stripOuterCodeFence(parts[i + 1] || '');
             // Accept any file with an extension, or if it's explicitly in expectedFilenames
             if (expectedFilenames.includes(fname) || fname.includes('.')) {
@@ -202,7 +329,7 @@ function parseAIOutput(content, expectedFilenames = []) {
         const regex = /(?:`|\*\*|### )?([a-zA-Z0-9_./-]+)(?:`|\*\*|)?\s*```[a-z]*\n([\s\S]*?)```/g;
         let match;
         while ((match = regex.exec(content)) !== null) {
-            const fname = match[1].trim();
+            const fname = normalizeFilePath(match[1]);
             const fcontent = stripOuterCodeFence(match[2] || '');
             if (expectedFilenames.includes(fname) || fname.includes('.')) {
                 result.files[fname] = sanitizeParsedFileContent(fname, fcontent);
@@ -468,6 +595,13 @@ Catatan: Pastikan menuliskan tag perintah ini secara persis pada teks respon And
 
         const parsedData = parseAIOutput(fullContent, outputFiles);
         
+        // Enforce frontend/backend prefix for dev stages
+        if (stage === 'frontend') {
+            parsedData.files = enforcePrefix(parsedData.files, 'frontend');
+        } else if (stage === 'backend') {
+            parsedData.files = enforcePrefix(parsedData.files, 'backend');
+        }
+        
         // 1. Write Files
         const officeConverter = require('./utils/officeConverter');
         for (const [fname, fcontent] of Object.entries(parsedData.files)) {
@@ -564,10 +698,82 @@ async function runStage(projectId, stage) {
         const chatId = db.insertChat(projectId, 'system', `🚀 Tahap Dev — Frontend & Backend berjalan paralel...`, 'dev');
         sse.emit(projectId, 'chat_message', { id: chatId, ts: Date.now(), role: 'system', message: `🚀 Tahap Dev — Frontend & Backend berjalan paralel...`, stage: 'dev' });
         
+        // === WORKSPACE SCAFFOLDING ===
+        // Create frontend/, backend/, shared/ directories and ARCHITECTURE.md before agents run
+        const wsDir = path.join(WORKSPACE_ROOT, projectId);
+        const scaffoldDirs = ['frontend', 'backend', 'shared'];
+        for (const dir of scaffoldDirs) {
+            const dirPath = path.join(wsDir, dir);
+            if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+        }
+        
+        // Auto-generate ARCHITECTURE.md
+        const project = db.getProject(projectId);
+        const architectureContent = `# 🏗️ Project Architecture — ${project ? project.name : 'Project'}\n\n` +
+            `## Directory Structure\n\n` +
+            `This project is organized into separate \`frontend/\` and \`backend/\` directories.\n\n` +
+            `\`\`\`\n` +
+            `${project ? project.name : 'project'}/\n` +
+            `├── frontend/               # Semua kode Frontend\n` +
+            `│   ├── src/\n` +
+            `│   │   ├── app/            # Pages / Routes\n` +
+            `│   │   ├── components/     # React Components\n` +
+            `│   │   ├── hooks/          # Custom React Hooks\n` +
+            `│   │   ├── stores/         # State Management (Zustand, dll)\n` +
+            `│   │   ├── styles/         # CSS / Design Tokens\n` +
+            `│   │   └── lib/            # FE Utilities, Constants, Types\n` +
+            `│   ├── public/             # Static Assets\n` +
+            `│   └── package.json\n` +
+            `│\n` +
+            `├── backend/                # Semua kode Backend\n` +
+            `│   ├── src/\n` +
+            `│   │   ├── routes/         # API Endpoints\n` +
+            `│   │   ├── services/       # Business Logic\n` +
+            `│   │   ├── repositories/   # Data Access Layer\n` +
+            `│   │   ├── middleware/     # Auth, RBAC, Validation\n` +
+            `│   │   └── lib/            # BE Utilities\n` +
+            `│   ├── prisma/             # Database Schema & Migrations\n` +
+            `│   └── package.json\n` +
+            `│\n` +
+            `├── shared/                 # Kode yang dipakai FE & BE\n` +
+            `│   ├── types/              # Shared TypeScript Types\n` +
+            `│   └── constants/          # Shared Constants (enums, status codes)\n` +
+            `│\n` +
+            `├── ARCHITECTURE.md         # File ini\n` +
+            `├── blueprint.md            # Arsitektur Blueprint\n` +
+            `└── prd.md                  # Product Requirements\n` +
+            `\`\`\`\n\n` +
+            `## Rules\n\n` +
+            `- **Frontend code** hanya di \`frontend/\`\n` +
+            `- **Backend code** hanya di \`backend/\`\n` +
+            `- **Shared types/constants** di \`shared/\`\n` +
+            `- Jangan buat duplikasi directory (misal: \`services/\` dan \`src/services/\`)\n` +
+            `- Pin semua dependency versions di package.json\n`;
+        
+        fs.writeFileSync(path.join(wsDir, 'ARCHITECTURE.md'), architectureContent);
+        db.addFile(projectId, 'ARCHITECTURE.md');
+        
+        const scaffoldMsg = `📁 Workspace scaffolding dibuat: frontend/, backend/, shared/, ARCHITECTURE.md`;
+        const scaffoldId = db.insertChat(projectId, 'system', scaffoldMsg, 'dev');
+        sse.emit(projectId, 'chat_message', { id: scaffoldId, ts: Date.now(), role: 'system', message: scaffoldMsg, stage: 'dev' });
+        
+        // === RUN FE + BE AGENTS IN PARALLEL ===
         await Promise.all([
             executeAgent(projectId, 'frontend').catch(e => console.error(e)),
             executeAgent(projectId, 'backend').catch(e => console.error(e))
         ]);
+        
+        // === POST-GENERATION VALIDATION ===
+        const validationWarnings = validateWorkspaceOutput(projectId);
+        if (validationWarnings.length > 0) {
+            const warningMsg = `🔍 Validasi Workspace Output:\n${validationWarnings.join('\n')}`;
+            const warnId = db.insertChat(projectId, 'system', warningMsg, 'dev');
+            sse.emit(projectId, 'chat_message', { id: warnId, ts: Date.now(), role: 'system', message: warningMsg, stage: 'dev' });
+        } else {
+            const okMsg = `✅ Validasi workspace OK — Frontend dan Backend terpisah dengan benar.`;
+            const okId = db.insertChat(projectId, 'system', okMsg, 'dev');
+            sse.emit(projectId, 'chat_message', { id: okId, ts: Date.now(), role: 'system', message: okMsg, stage: 'dev' });
+        }
 
         const pipelineState = db.getPipelineState(projectId);
         if (!pipelineState) return;

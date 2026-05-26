@@ -43,6 +43,8 @@ function initDb() {
             ai_base_url TEXT,
             ai_api_key  TEXT,
             mcp_servers TEXT,
+            git_token   TEXT,
+            git_username TEXT,
             updated_at  INTEGER
         );
 
@@ -66,6 +68,12 @@ function initDb() {
     } catch (e) {}
     try {
         db.exec("ALTER TABLE office_config ADD COLUMN mcp_servers TEXT");
+    } catch (e) {}
+    try {
+        db.exec("ALTER TABLE office_config ADD COLUMN git_token TEXT");
+    } catch (e) {}
+    try {
+        db.exec("ALTER TABLE office_config ADD COLUMN git_username TEXT");
     } catch (e) {}
 
     // Seed default config if not exists
@@ -106,6 +114,10 @@ function listProjects() {
 
 function getProject(id) {
     return getDb().prepare(`SELECT * FROM projects WHERE id = ?`).get(id);
+}
+
+function updateProjectTask(id, newTask) {
+    getDb().prepare(`UPDATE projects SET task = ? WHERE id = ?`).run(newTask, id);
 }
 
 function deleteProject(id) {
@@ -198,16 +210,17 @@ function getOfficeConfig() {
 function updateOfficeConfig(updates) {
     const config = getOfficeConfig();
     if (!config) return;
-    const { template, name, stages, onboard_prompt, ai_model, ai_base_url, ai_api_key, mcp_servers } = { ...config, ...updates };
+    const { template, name, stages, onboard_prompt, ai_model, ai_base_url, ai_api_key, mcp_servers, git_token, git_username } = { ...config, ...updates };
     getDb().prepare(`
         UPDATE office_config 
-        SET template = ?, name = ?, stages = ?, onboard_prompt = ?, ai_model = ?, ai_base_url = ?, ai_api_key = ?, mcp_servers = ?, updated_at = ?
+        SET template = ?, name = ?, stages = ?, onboard_prompt = ?, ai_model = ?, ai_base_url = ?, ai_api_key = ?, mcp_servers = ?, git_token = ?, git_username = ?, updated_at = ?
         WHERE id = 'default'
     `).run(
         template, name, 
         typeof stages === 'string' ? stages : JSON.stringify(stages),
         onboard_prompt || null,
         ai_model || null, ai_base_url || null, ai_api_key || null, mcp_servers || null,
+        git_token || null, git_username || null,
         Date.now()
     );
 }
@@ -225,7 +238,7 @@ function updateStagePrompt(stageId, customPrompt) {
 function resetOfficeConfig() {
     getDb().prepare(`
         UPDATE office_config 
-        SET template = 'software_dev', name = 'Software Dev Office', stages = ?, onboard_prompt = NULL, ai_model = NULL, ai_base_url = NULL, ai_api_key = NULL, mcp_servers = NULL, updated_at = ?
+        SET template = 'software_dev', name = 'Software Dev Office', stages = ?, onboard_prompt = NULL, ai_model = NULL, ai_base_url = NULL, ai_api_key = NULL, mcp_servers = NULL, git_token = NULL, git_username = NULL, updated_at = ?
         WHERE id = 'default'
     `).run(JSON.stringify(DEFAULT_STAGES), Date.now());
 }
@@ -252,7 +265,7 @@ function deleteCustomTemplate(id) {
 
 module.exports = {
     initDb, getDb,
-    createProject, listProjects, getProject, deleteProject,
+    createProject, listProjects, getProject, updateProjectTask, deleteProject,
     initPipelineState, getPipelineState, updateFsmState, updateKanban, addFile,
     insertChat, getChatLog,
     getOfficeConfig, updateOfficeConfig, updateStagePrompt, resetOfficeConfig,

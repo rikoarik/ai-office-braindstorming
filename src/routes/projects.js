@@ -264,4 +264,93 @@ router.delete('/:id', (req, res) => {
     }
 });
 
+// POST /api/projects/:id/git-push
+router.post('/:id/git-push', (req, res) => {
+    const id = req.params.id;
+    const { repoUrl } = req.body;
+    if (!repoUrl) return res.status(400).json({ error: 'repoUrl is required' });
+
+    const config = db.getOfficeConfig();
+    const token = config.git_token;
+    const username = config.git_username;
+
+    if (!token || !username) {
+        return res.status(400).json({ error: 'Git credentials not configured in settings.' });
+    }
+
+    const wsDir = path.join(WORKSPACE_ROOT, id);
+    if (!fs.existsSync(wsDir)) return res.status(404).json({ error: 'Workspace not found' });
+
+    try {
+        const { execSync } = require('child_process');
+        
+        execSync('rm -rf .git', { cwd: wsDir, stdio: 'ignore' });
+        execSync('git init', { cwd: wsDir });
+        execSync('git branch -M main', { cwd: wsDir });
+        execSync('git add .', { cwd: wsDir });
+        execSync(`git config user.name "${username}"`, { cwd: wsDir });
+        execSync(`git config user.email "${username}@users.noreply.github.com"`, { cwd: wsDir });
+        execSync('git commit -m "Initial commit from AI Office"', { cwd: wsDir });
+
+        let remoteUrl = repoUrl;
+        if (!remoteUrl.includes('https://')) {
+            remoteUrl = 'https://' + remoteUrl;
+        }
+        
+        const urlObj = new URL(remoteUrl);
+        urlObj.username = username;
+        urlObj.password = token;
+        
+        execSync(`git remote add origin ${urlObj.toString()}`, { cwd: wsDir });
+        execSync(`git push -u origin main --force`, { cwd: wsDir });
+
+        res.json({ success: true, message: 'Successfully pushed to repository!' });
+    } catch (err) {
+        console.error('Git push error:', err.message);
+        const tokenSafe = (token && token.length > 0) ? token : 'token';
+        const safeError = err.message.replace(new RegExp(tokenSafe, 'g'), '***');
+        res.status(500).json({ error: 'Failed to push to Git: ' + safeError });
+    }
+});
+
+// POST /api/projects/:id/revise
+router.post('/:id/revise', (req, res) => {
+    const id = req.params.id;
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'message is required' });
+
+    const project = db.getProject(id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    try {
+        const newTask = project.task + '\\n\\n[REVISI USER]: ' + message;
+        db.updateProjectTask(id, newTask);
+
+        const rid = db.insertChat(id, 'user', `Revisi: ${message}`, 'planning');
+        sse.emit(id, 'chat_message', { id: rid, ts: Date.now(), role: 'user', message: `Revisi: ${message}`, stage: 'planning' });
+
+        const config = db.getOfficeConfig();
+        const stages = (config && config.stages) || db.DEFAULT_STAGES;
+        const isCustom = config && config.template && config.template !== 'software_dev';
+        const initialFsmState = isCustom ? 'stage_0_active' : 'planning_active';
+        
+        db.updateFsmState(id, initialFsmState);
+
+        const state = db.getPipelineState(id);
+        const newKanban = state.kanban.map((k, idx) => ({ ...k, status: idx === 0 ? 'in-progress' : 'todo' }));
+        db.updateKanban(id, newKanban);
+
+        const pipeline = sm.buildPipelineSteps(initialFsmState, stages);
+        sse.emit(id, 'pipeline_update', { fsmState: initialFsmState, stage: sm.stageOf(initialFsmState, stages), kanban: newKanban, pipeline });
+
+        const firstStageId = isCustom ? stages[0].id : 'planning';
+        setImmediate(() => aiWorker.runStage(id, firstStageId));
+
+        res.json({ success: true, fsmState: initialFsmState });
+    } catch (err) {
+        console.error('Revise error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

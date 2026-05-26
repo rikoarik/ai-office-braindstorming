@@ -10,7 +10,7 @@ import { ChatLog } from './components/ChatLog';
 import { MarkdownViewer } from './components/MarkdownViewer';
 import { SettingsPage } from './components/SettingsPage';
 import { usePipelineStream } from './hooks/usePipelineStream';
-import { Warning2, Building, MessageText, ClipboardTick, Folder2, DocumentText, TickCircle, CloseCircle, Code, People } from 'iconsax-react';
+import { Warning2, Building, MessageText, ClipboardTick, Folder2, DocumentText, TickCircle, CloseCircle, Code, People, Cloud } from 'iconsax-react';
 import { FileTree } from './components/FileTree';
 
 function App() {
@@ -323,13 +323,57 @@ function App() {
 
                  {activeTab === 'lobby' && (
                   <div className={`${styles.panel} ${styles.chatPanel}`}>
-                    <div className={styles.panelBody}>
-                      {chatLogs.filter(msg => msg.stage === 'onboarding').length === 0 ? (
-                        <div style={{ color: '#000', fontWeight: 700, padding: '24px', textAlign: 'center' }}>
-                          Belum ada riwayat onboarding (lobby proyek) untuk proyek ini.
+                    <div className={styles.panelBody} style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ flex: 1, overflowY: 'auto' }}>
+                        {chatLogs.filter(msg => msg.stage === 'onboarding').length === 0 ? (
+                          <div style={{ color: '#000', fontWeight: 700, padding: '24px', textAlign: 'center' }}>
+                            Belum ada riwayat onboarding (lobby proyek) untuk proyek ini.
+                          </div>
+                        ) : (
+                          <ChatLog logs={chatLogs.filter(msg => msg.stage === 'onboarding')} aiStreamChunks={{}} />
+                        )}
+                      </div>
+                      
+                      {(fsmState === 'done' || fsmState?.includes('paused') || fsmState?.includes('review')) && (
+                        <div style={{ padding: '16px', borderTop: 'var(--neo-border)', background: 'var(--bg-accent)' }}>
+                          <h4 style={{ fontFamily: 'var(--font-display)', margin: '0 0 8px 0', fontSize: '14px', textTransform: 'uppercase', fontWeight: 900 }}>Request Revision</h4>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Ketik revisi yang diinginkan (misal: 'tolong ubah warna navbar jadi merah')" 
+                              style={{ flex: 1, padding: '12px', border: 'var(--neo-border)', borderRadius: '0', background: '#fff', fontSize: '14px' }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = e.currentTarget.value;
+                                  if (val.trim() && currentProjectId) {
+                                    fetch(`/api/projects/${currentProjectId}/revise`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ message: val })
+                                    }).then(() => e.currentTarget.value = '');
+                                  }
+                                }
+                              }}
+                            />
+                            <button 
+                              className={styles.primaryBtn}
+                              style={{ padding: '12px 24px', borderRadius: '0' }}
+                              onClick={(e) => {
+                                const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                const val = input.value;
+                                if (val.trim() && currentProjectId) {
+                                  fetch(`/api/projects/${currentProjectId}/revise`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ message: val })
+                                  }).then(() => input.value = '');
+                                }
+                              }}
+                            >
+                              Send
+                            </button>
+                          </div>
                         </div>
-                      ) : (
-                        <ChatLog logs={chatLogs.filter(msg => msg.stage === 'onboarding')} aiStreamChunks={{}} />
                       )}
                     </div>
                   </div>
@@ -378,6 +422,27 @@ function App() {
                               >
                                 <Code size="16" color="#fff" variant="Bold" /> Open in Cursor
                               </a>
+                              {fsmState === 'done' && (
+                                <button 
+                                  className={styles.workspaceLink}
+                                  style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: 'var(--accent-success)', margin: 0, color: '#fff', border: 'var(--neo-border)', cursor: 'pointer' }}
+                                  onClick={() => {
+                                    const repo = prompt('Enter Repository URL (e.g., github.com/username/repo):');
+                                    if (repo && currentProjectId) {
+                                      fetch(`/api/projects/${currentProjectId}/git-push`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ repoUrl: repo })
+                                      }).then(res => res.json()).then(data => {
+                                        if (data.error) alert('Error: ' + data.error);
+                                        else alert('Success: ' + data.message);
+                                      }).catch(err => alert('Failed to push: ' + err.message));
+                                    }
+                                  }}
+                                >
+                                  <Cloud size="16" color="#fff" variant="Bold" /> Push to Git
+                                </button>
+                              )}
                             </div>
                           )}
                           {workspaceFiles.length === 0 ? (
