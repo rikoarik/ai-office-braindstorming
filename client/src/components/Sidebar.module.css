@@ -15,6 +15,9 @@
   background: var(--accent-primary);
   border-bottom: var(--neo-border);
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .title {
@@ -156,6 +159,49 @@
 .newButton:active .newButtonInner {
   transform: translate(4px, 4px);
   box-shadow: 0px 0px 0px 0px #000;
+}
+
+/* Collapse modifiers */
+.sidebar.collapsed {
+  width: 72px;
+  min-width: 72px;
+}
+.sidebar.collapsed .header {
+  padding: 16px 8px;
+  justify-content: center;
+}
+.sidebar.collapsed .projectList {
+  padding: 0 8px;
+}
+.sidebar.collapsed .projectItem {
+  padding: 12px 4px;
+  text-align: center;
+}
+.sidebar.collapsed .projHeader {
+  justify-content: center;
+}
+.sidebar.collapsed .projName {
+  font-size: 18px;
+}
+.sidebar.collapsed .footer {
+  padding: 16px 8px;
+}
+.sidebar.collapsed .newButtonInner {
+  padding: 12px 0;
+}
+.toggleBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.toggleBtn:hover {
+  background: rgba(0,0,0,0.1);
 }
 
 @media (max-width: 768px) {

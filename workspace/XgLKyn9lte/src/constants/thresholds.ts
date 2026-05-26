@@ -1,0 +1,1 @@
+export const STATUS_RULE = { AMAN: 30000, MEPET: 15000 };

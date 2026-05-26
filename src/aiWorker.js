@@ -412,12 +412,16 @@ Catatan: Pastikan menuliskan tag perintah ini secara persis pada teks respon And
                 messages.push({ role: 'user', content: `[HASIL PENCARIAN DUCKDUKGO UNTUK "${query}"]:\n${searchResult}\n\nSilakan lanjutkan pengerjaan tugas Anda dengan memanfaatkan referensi tersebut.` });
                 
                 // Clear current stream chunk on client
-                sse.emit(projectId, 'pipeline_update', { 
-                    fsmState: db.getPipelineState(projectId).fsm_state, 
-                    stage, 
-                    kanban: db.getPipelineState(projectId).kanban, 
-                    pipeline: sm.buildPipelineSteps(db.getPipelineState(projectId).fsm_state, db.getProjectStages(projectId)) 
-                });
+                const pipelineState = db.getPipelineState(projectId);
+                if (pipelineState) {
+                    sse.emit(projectId, 'pipeline_update', { 
+                        fsmState: pipelineState.fsm_state, 
+                        stage, 
+                        kanban: pipelineState.kanban, 
+                        pipeline: sm.buildPipelineSteps(pipelineState.fsm_state, db.getProjectStages(projectId)) 
+                    });
+                }
+
 
                 turns++;
                 continue;
@@ -435,12 +439,16 @@ Catatan: Pastikan menuliskan tag perintah ini secara persis pada teks respon And
                 messages.push({ role: 'user', content: `[KONTEN HALAMAN WEB DARI "${url}"]:\n${scrapeResult}\n\nSilakan lanjutkan pengerjaan tugas Anda dengan memanfaatkan informasi tersebut.` });
 
                 // Clear current stream chunk on client
-                sse.emit(projectId, 'pipeline_update', { 
-                    fsmState: db.getPipelineState(projectId).fsm_state, 
-                    stage, 
-                    kanban: db.getPipelineState(projectId).kanban, 
-                    pipeline: sm.buildPipelineSteps(db.getPipelineState(projectId).fsm_state, db.getProjectStages(projectId)) 
-                });
+                const pipelineState = db.getPipelineState(projectId);
+                if (pipelineState) {
+                    sse.emit(projectId, 'pipeline_update', { 
+                        fsmState: pipelineState.fsm_state, 
+                        stage, 
+                        kanban: pipelineState.kanban, 
+                        pipeline: sm.buildPipelineSteps(pipelineState.fsm_state, db.getProjectStages(projectId)) 
+                    });
+                }
+
 
                 turns++;
                 continue;
@@ -509,7 +517,9 @@ Catatan: Pastikan menuliskan tag perintah ini secara persis pada teks respon And
         }
 
         const state = db.getPipelineState(projectId);
-        sse.emit(projectId, 'workspace_update', { files: state.files });
+        if (state) {
+            sse.emit(projectId, 'workspace_update', { files: state.files });
+        }
 
         const summary = fullContent.slice(0, 250).replace(/\n/g, ' ') + '...';
         const cid = db.insertChat(projectId, chatRole, summary, stage);
@@ -540,9 +550,12 @@ async function runStage(projectId, stage) {
             executeAgent(projectId, 'backend').catch(e => console.error(e))
         ]);
 
+        const pipelineState = db.getPipelineState(projectId);
+        if (!pipelineState) return;
+
         const newState = sm.transition('dev_active', 'ai_done');
         db.updateFsmState(projectId, newState);
-        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState), kanban: db.getPipelineState(projectId).kanban, pipeline: sm.buildPipelineSteps(newState) });
+        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState) });
         setTimeout(() => runStage(projectId, 'qa'), 500);
         return;
     }
@@ -558,18 +571,24 @@ async function runStage(projectId, stage) {
             const vid = db.insertChat(projectId, 'qa', verdictMsg, stage);
             sse.emit(projectId, 'chat_message', { id: vid, ts: Date.now(), role: 'qa', message: verdictMsg, stage });
 
+            const pipelineState = db.getPipelineState(projectId);
+            if (!pipelineState) return;
+
             const newState = sm.transition('qa_active', verdict, stages);
             db.updateFsmState(projectId, newState);
-            sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: db.getPipelineState(projectId).kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
+            sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
             setTimeout(() => runStage(projectId, newState === 'dev_active' ? 'dev' : 'deploy'), 1000);
             return;
         }
 
         // FSM transition
-        const currentState = db.getPipelineState(projectId).fsm_state;
+        const pipelineState = db.getPipelineState(projectId);
+        if (!pipelineState) return;
+
+        const currentState = pipelineState.fsm_state;
         const newState = sm.transition(currentState, 'ai_done', stages);
         db.updateFsmState(projectId, newState);
-        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: db.getPipelineState(projectId).kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
+        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
 
         if (sm.isCustomState(newState)) {
             const info = sm.parseCustomState(newState);

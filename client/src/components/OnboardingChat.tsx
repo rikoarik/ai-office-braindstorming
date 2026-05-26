@@ -26,6 +26,51 @@ export const OnboardingChat: React.FC<OnboardingChatProps> = ({ onProjectCreated
     return saved ? JSON.parse(saved) : null;
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const [chatFlex, setChatFlex] = useState(65);
+  const [isDragging, setIsDragging] = useState(false);
+  const resizerRef = useRef<HTMLDivElement>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    if (resizerRef.current) {
+      resizerRef.current.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const container = document.getElementById('onboarding-body-layout');
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const newFlex = ((e.clientX - rect.left) / rect.width) * 100;
+      if (newFlex > 20 && newFlex < 80) {
+        setChatFlex(newFlex);
+      }
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    if (resizerRef.current && resizerRef.current.hasPointerCapture(e.pointerId)) {
+      resizerRef.current.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
 
   const [activeConfig, setActiveConfig] = useState<any>(null);
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string }[]>([]);
@@ -289,8 +334,8 @@ export const OnboardingChat: React.FC<OnboardingChatProps> = ({ onProjectCreated
           </button>
         </div>
 
-        <div className={styles.bodyLayout}>
-          <div className={styles.chatSection}>
+        <div className={styles.bodyLayout} id="onboarding-body-layout">
+          <div className={styles.chatSection} style={{ flex: extractedReqs ? `0 0 ${chatFlex}%` : 1 }}>
             <div className={styles.messages}>
               {messages.map((m, i) => (
                 <div key={i} className={`${styles.msg} ${m.role === 'user' ? styles.msgUser : styles.msgAi}`}>
@@ -397,6 +442,17 @@ export const OnboardingChat: React.FC<OnboardingChatProps> = ({ onProjectCreated
               </div>
             </div>
           </div>
+
+          {extractedReqs && (
+            <div 
+              ref={resizerRef}
+              className={`${styles.resizer} ${isDragging ? styles.resizerActive : ''}`} 
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+            />
+          )}
 
           {extractedReqs && (
             <div className={styles.reqSection}>

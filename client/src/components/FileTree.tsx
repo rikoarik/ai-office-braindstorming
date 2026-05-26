@@ -35,19 +35,23 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, currentProjectId, onP
       let accumulatedPath = '';
 
       parts.forEach((part, index) => {
+        const lowerPart = part.toLowerCase();
+        const existingKey = Object.keys(current).find(k => k.toLowerCase() === lowerPart && k !== '_meta');
+        const keyToUse = existingKey || part;
+
         accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
         const isLast = index === parts.length - 1;
 
-        if (!current[part]) {
-          current[part] = {
+        if (!current[keyToUse]) {
+          current[keyToUse] = {
             _meta: {
-              name: part,
+              name: keyToUse,
               path: accumulatedPath,
               isFolder: !isLast
             }
           };
         }
-        current = current[part];
+        current = current[keyToUse];
       });
     });
 

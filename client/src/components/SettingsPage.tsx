@@ -523,6 +523,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                   </button>
                 </div>
                 <div className={styles.templateGrid}>
+                  {templates.length === 0 && <div style={{ color: 'red' }}>Templates array is empty!</div>}
                   {templates.map(t => (
                     <div
                       key={t.id}
