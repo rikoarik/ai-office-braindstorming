@@ -177,7 +177,7 @@ router.get('/', (req, res) => {
 
 // POST /api/projects — create + kick off planning
 router.post('/', async (req, res) => {
-    const { name, task, importPath, onboardMessages } = req.body;
+    const { name, task, features, importPath, onboardMessages } = req.body;
     if (!name || !task) return res.status(400).json({ error: 'name and task required' });
 
     const id = nanoid(10);
@@ -209,12 +209,21 @@ router.post('/', async (req, res) => {
         }
     }
 
-    // Initialize Kanban based on stages
-    const kanban = stages.map((s, idx) => ({
-        id: String(idx + 1),
-        title: s.name,
-        status: idx === 0 ? 'in-progress' : 'todo'
-    }));
+    // Initialize Kanban based on features or stages
+    let kanban = [];
+    if (features && Array.isArray(features) && features.length > 0) {
+        kanban = features.map((f, idx) => ({
+            id: `feat_${idx}`,
+            title: f,
+            status: idx === 0 ? 'in-progress' : 'todo'
+        }));
+    } else {
+        kanban = stages.map((s, idx) => ({
+            id: String(idx + 1),
+            title: s.name,
+            status: idx === 0 ? 'in-progress' : 'todo'
+        }));
+    }
 
     db.initPipelineState(id, kanban);
     db.updateFsmState(id, initialFsmState);

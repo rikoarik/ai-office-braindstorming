@@ -22,6 +22,7 @@ interface OfficeConfig {
   ai_model: string | null;
   ai_base_url: string | null;
   ai_api_key: string | null;
+  mcp_servers: string | null;
 }
 
 interface Template {
@@ -51,6 +52,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
   const [aiModel, setAiModel] = useState('');
   const [aiBaseUrl, setAiBaseUrl] = useState('');
   const [aiApiKey, setAiApiKey] = useState('');
+  const [mcpServers, setMcpServers] = useState('');
   const [onboardPrompt, setOnboardPrompt] = useState('');
 
   // Creator form state
@@ -181,6 +183,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       setAiModel(data.ai_model || '');
       setAiBaseUrl(data.ai_base_url || '');
       setAiApiKey(data.ai_api_key || '');
+      setMcpServers(data.mcp_servers || '');
       setOnboardPrompt(data.onboard_prompt || '');
     } catch (e) {
       console.error('Failed to fetch settings', e);
@@ -254,6 +257,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
           ai_model: aiModel || null,
           ai_base_url: aiBaseUrl || null,
           ai_api_key: aiApiKey || null,
+          mcp_servers: mcpServers || null,
           onboard_prompt: onboardPrompt || null
         })
       });
@@ -274,6 +278,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       setAiModel('');
       setAiBaseUrl('');
       setAiApiKey('');
+      setMcpServers('');
       setOnboardPrompt('');
       setEditingPrompts({});
       showToast('✓ Reset Complete!');
@@ -679,6 +684,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
                 onChange={(e) => setOnboardPrompt(e.target.value)}
                 placeholder="Custom onboarding system prompt... (leave empty for default)"
                 rows={8}
+              />
+            </div>
+
+            <div className={`${styles.configSection} ${styles.onboardSection}`}>
+              <div className={styles.configTitle}>
+                <Cloud size="24" color="#000" variant="Bold" />
+                MCP Servers Configuration (JSON)
+              </div>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 16, fontWeight: 500 }}>
+                Configure Model Context Protocol (MCP) servers (e.g. Supabase, FileSystem) in JSON format.
+              </p>
+              <textarea
+                className={styles.promptTextarea}
+                value={mcpServers}
+                onChange={(e) => setMcpServers(e.target.value)}
+                placeholder='{&#10;  "mcpServers": {&#10;    "supabase": {&#10;      "command": "npx",&#10;      "args": ["-y", "@supabase/mcp"]&#10;    }&#10;  }&#10;}'
+                rows={8}
+                style={{ fontFamily: 'monospace' }}
               />
             </div>
 

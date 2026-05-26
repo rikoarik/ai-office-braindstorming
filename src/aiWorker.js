@@ -540,6 +540,25 @@ Catatan: Pastikan menuliskan tag perintah ini secara persis pada teks respon And
     }
 }
 
+function progressKanban(kanban) {
+    if (!kanban || !Array.isArray(kanban)) return kanban;
+    const newKanban = JSON.parse(JSON.stringify(kanban));
+    
+    // Move one "in-progress" task to "done"
+    const inProgressIndex = newKanban.findIndex(k => k.status === 'in-progress');
+    if (inProgressIndex !== -1) {
+        newKanban[inProgressIndex].status = 'done';
+    }
+    
+    // Move one "todo" task to "in-progress"
+    const todoIndex = newKanban.findIndex(k => k.status === 'todo');
+    if (todoIndex !== -1) {
+        newKanban[todoIndex].status = 'in-progress';
+    }
+    
+    return newKanban;
+}
+
 async function runStage(projectId, stage) {
     if (stage === 'dev') {
         const chatId = db.insertChat(projectId, 'system', `🚀 Tahap Dev — Frontend & Backend berjalan paralel...`, 'dev');
@@ -554,8 +573,10 @@ async function runStage(projectId, stage) {
         if (!pipelineState) return;
 
         const newState = sm.transition('dev_active', 'ai_done');
+        const updatedKanban = progressKanban(pipelineState.kanban);
+        db.updateKanban(projectId, updatedKanban);
         db.updateFsmState(projectId, newState);
-        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState) });
+        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState), kanban: updatedKanban, pipeline: sm.buildPipelineSteps(newState) });
         setTimeout(() => runStage(projectId, 'qa'), 500);
         return;
     }
@@ -575,8 +596,10 @@ async function runStage(projectId, stage) {
             if (!pipelineState) return;
 
             const newState = sm.transition('qa_active', verdict, stages);
+            const updatedKanban = verdict === 'pass' ? progressKanban(pipelineState.kanban) : pipelineState.kanban;
+            if (verdict === 'pass') db.updateKanban(projectId, updatedKanban);
             db.updateFsmState(projectId, newState);
-            sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
+            sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: updatedKanban, pipeline: sm.buildPipelineSteps(newState, stages) });
             setTimeout(() => runStage(projectId, newState === 'dev_active' ? 'dev' : 'deploy'), 1000);
             return;
         }
@@ -587,8 +610,10 @@ async function runStage(projectId, stage) {
 
         const currentState = pipelineState.fsm_state;
         const newState = sm.transition(currentState, 'ai_done', stages);
+        const updatedKanban = progressKanban(pipelineState.kanban);
+        db.updateKanban(projectId, updatedKanban);
         db.updateFsmState(projectId, newState);
-        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: pipelineState.kanban, pipeline: sm.buildPipelineSteps(newState, stages) });
+        sse.emit(projectId, 'pipeline_update', { fsmState: newState, stage: sm.stageOf(newState, stages), kanban: updatedKanban, pipeline: sm.buildPipelineSteps(newState, stages) });
 
         if (sm.isCustomState(newState)) {
             const info = sm.parseCustomState(newState);

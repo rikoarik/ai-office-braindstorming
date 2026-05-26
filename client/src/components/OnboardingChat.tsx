@@ -292,6 +292,7 @@ export const OnboardingChat: React.FC<OnboardingChatProps> = ({ onProjectCreated
         body: JSON.stringify({ 
           name: extractedReqs.name || 'MyProject', 
           task: taskStr,
+          features: extractedReqs.features || [],
           importPath: importPath.trim() || undefined,
           onboardMessages: messages
         })

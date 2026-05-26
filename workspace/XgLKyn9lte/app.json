@@ -1,9 +1,0 @@
-{
-  "expo": {
-    "name": "CukupGak",
-    "slug": "cukupgak",
-    "scheme": "cukupgak",
-    "plugins": ["expo-router"],
-    "experiments": { "typedRoutes": true }
-  }
-}

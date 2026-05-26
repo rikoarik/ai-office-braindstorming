@@ -52,3 +52,6 @@ lerna-debug.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Workspace directories
+workspace/

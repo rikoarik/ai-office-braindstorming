@@ -42,6 +42,7 @@ function initDb() {
             ai_model    TEXT,
             ai_base_url TEXT,
             ai_api_key  TEXT,
+            mcp_servers TEXT,
             updated_at  INTEGER
         );
 
@@ -62,6 +63,9 @@ function initDb() {
     } catch (e) {}
     try {
         db.exec("ALTER TABLE projects ADD COLUMN stages TEXT");
+    } catch (e) {}
+    try {
+        db.exec("ALTER TABLE office_config ADD COLUMN mcp_servers TEXT");
     } catch (e) {}
 
     // Seed default config if not exists
@@ -194,16 +198,16 @@ function getOfficeConfig() {
 function updateOfficeConfig(updates) {
     const config = getOfficeConfig();
     if (!config) return;
-    const { template, name, stages, onboard_prompt, ai_model, ai_base_url, ai_api_key } = { ...config, ...updates };
+    const { template, name, stages, onboard_prompt, ai_model, ai_base_url, ai_api_key, mcp_servers } = { ...config, ...updates };
     getDb().prepare(`
         UPDATE office_config 
-        SET template = ?, name = ?, stages = ?, onboard_prompt = ?, ai_model = ?, ai_base_url = ?, ai_api_key = ?, updated_at = ?
+        SET template = ?, name = ?, stages = ?, onboard_prompt = ?, ai_model = ?, ai_base_url = ?, ai_api_key = ?, mcp_servers = ?, updated_at = ?
         WHERE id = 'default'
     `).run(
         template, name, 
         typeof stages === 'string' ? stages : JSON.stringify(stages),
         onboard_prompt || null,
-        ai_model || null, ai_base_url || null, ai_api_key || null,
+        ai_model || null, ai_base_url || null, ai_api_key || null, mcp_servers || null,
         Date.now()
     );
 }
@@ -221,7 +225,7 @@ function updateStagePrompt(stageId, customPrompt) {
 function resetOfficeConfig() {
     getDb().prepare(`
         UPDATE office_config 
-        SET template = 'software_dev', name = 'Software Dev Office', stages = ?, onboard_prompt = NULL, ai_model = NULL, ai_base_url = NULL, ai_api_key = NULL, updated_at = ?
+        SET template = 'software_dev', name = 'Software Dev Office', stages = ?, onboard_prompt = NULL, ai_model = NULL, ai_base_url = NULL, ai_api_key = NULL, mcp_servers = NULL, updated_at = ?
         WHERE id = 'default'
     `).run(JSON.stringify(DEFAULT_STAGES), Date.now());
 }
